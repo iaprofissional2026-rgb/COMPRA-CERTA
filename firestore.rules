@@ -1,0 +1,111 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId} (UID)
+    // Fields:
+    //   - uid: string (required) - Firebase Auth UID
+    //   - email: string (required) - User email
+    //   - status: string (required, enum: ['new', 'pending', 'approved']) - Payment and approval status
+    //   - role: string (required, enum: ['user', 'admin']) - User role
+    //   - createdAt: timestamp (optional) - Account creation date
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "viralizaapp33@gmail.com" && request.auth.token.email_verified == true) ||
+          (request.auth.token.email == "mizael.org.silva@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidUser(data) {
+      return data.uid is string && 
+             data.email is string && 
+             data.status in ['new', 'pending', 'approved'] &&
+             data.role in ['user', 'admin'];
+    }
+
+    function isValidAccessCode(data) {
+      return data.keys().hasAll(['code', 'maxUses', 'currentUses', 'isUsed', 'createdBy', 'createdAt']) &&
+             data.code is string && data.code.size() > 0 && data.code.size() < 50 &&
+             data.maxUses is int && data.maxUses > 0 &&
+             data.currentUses is int && data.currentUses >= 0 &&
+             data.isUsed is bool &&
+             data.createdBy is string && data.createdBy == request.auth.uid &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['title', 'body', 'type', 'createdAt']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.body is string && data.body.size() > 0 && data.body.size() < 1000 &&
+             data.type in ['broadcast', 'targeted', 'admin_broadcast'] &&
+             (data.type == 'broadcast' || data.type == 'admin_broadcast' || ('targetUserId' in data && data.targetUserId is string));
+    }
+
+    function isValidShoppingList(data) {
+      return data.keys().hasAll(['userId', 'items', 'total', 'createdAt']) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.items is list && data.items.size() < 100 &&
+             data.total is number && data.total >= 0;
+    }
+
+    match /app_settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /access_codes/{codeId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidAccessCode(request.resource.data);
+      allow update: if isAuthenticated() && 
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentUses', 'isUsed']) &&
+                    request.resource.data.currentUses == resource.data.currentUses + 1;
+      allow delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (
+        resource.data.type == 'broadcast' || 
+        resource.data.type == 'admin_broadcast' ||
+        resource.data.targetUserId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if (isAdmin() || (isAuthenticated() && request.resource.data.type == 'admin_broadcast')) && isValidNotification(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    match /shopping_lists/{listId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && isValidShoppingList(request.resource.data);
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid && isValidShoppingList(request.resource.data);
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      
+      allow create: if isAuthenticated() && 
+                      isOwner(userId) &&
+                      isValidUser(request.resource.data);
+                      
+      allow update: if isAuthenticated() && (isOwner(userId) || isAdmin());
+    }
+  }
+}

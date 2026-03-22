@@ -1,0 +1,92 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with payment and approval status",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "description": "User email" },
+        "status": { 
+          "type": "string", 
+          "enum": ["new", "pending", "approved"],
+          "description": "Payment and approval status" 
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "admin"],
+          "description": "User role"
+        },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation date" }
+      },
+      "required": ["uid", "email", "status", "role"]
+    },
+    "AppSettings": {
+      "title": "AppSettings",
+      "description": "Global application settings",
+      "type": "object",
+      "properties": {
+        "appName": { "type": "string" },
+        "appDescription": { "type": "string" }
+      }
+    },
+    "AccessCode": {
+      "title": "AccessCode",
+      "description": "Access codes for users",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "maxUses": { "type": "integer" },
+        "currentUses": { "type": "integer" },
+        "isUsed": { "type": "boolean" },
+        "createdBy": { "type": "string", "description": "UID of the admin who created the code" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System or targeted notifications",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "type": { "type": "string", "enum": ["broadcast", "targeted"] },
+        "targetUserId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "ShoppingList": {
+      "title": "ShoppingList",
+      "description": "User shopping lists",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "items": { "type": "array" },
+        "total": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User documents indexed by UID"
+    },
+    "/app_settings/{settingId}": {
+      "schema": "AppSettings",
+      "description": "Global settings"
+    },
+    "/access_codes/{codeId}": {
+      "schema": "AccessCode",
+      "description": "Access codes"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Notifications"
+    },
+    "/shopping_lists/{listId}": {
+      "schema": "ShoppingList",
+      "description": "Shopping lists"
+    }
+  }
+}
