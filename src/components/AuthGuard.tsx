@@ -121,7 +121,7 @@ function PendingApprovalScreen({ onEnterCode, logout }: { onEnterCode: () => voi
 }
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, profile, loading, signIn, logout, isAdmin, appSettings } = useAuth();
+  const { user, profile, loading, signIn, logout, isAdmin, appSettings, authError } = useAuth();
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -210,6 +210,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           <h1 className="text-3xl font-bold text-neutral-900 mb-2">{appSettings?.appName || 'Compra Certa'}</h1>
           <p className="text-neutral-500 mb-8">{appSettings?.appDescription || 'Sua lista de compras premium, rápida e eficiente.'}</p>
           
+          {authError && (
+            <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-xl text-sm flex items-center justify-center gap-2 text-left">
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <p>{authError}</p>
+            </div>
+          )}
+
           <button
             onClick={signIn}
             className="w-full bg-neutral-900 text-white py-4 rounded-2xl font-semibold hover:bg-neutral-800 transition-colors flex items-center justify-center gap-3"
