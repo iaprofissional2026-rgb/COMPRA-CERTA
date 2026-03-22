@@ -2,13 +2,16 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { 
   onAuthStateChanged, 
   User, 
-  signInWithPopup, 
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider, 
   signOut 
 } from 'firebase/auth';
 import { doc, onSnapshot, setDoc, serverTimestamp, getDocFromServer, Unsubscribe } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { OperationType, handleFirestoreError } from '../lib/firestore';
+import { Capacitor } from '@capacitor/core';
 
 interface AuthContextType {
   user: User | null;
@@ -20,6 +23,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isFeminine: boolean;
   setIsFeminine: (val: boolean) => void;
+  authError: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,6 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [appSettings, setAppSettings] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [isFeminine, setIsFeminine] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
     let unsubProfile: Unsubscribe | null = null;
@@ -47,6 +52,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           appVersion: '1.0.0',
           playStoreUrl: ''
         });
+      }
+    });
+
+    // Handle redirect result for native platforms
+    getRedirectResult(auth).catch((error) => {
+      console.error('Redirect result error:', error);
+      if (error.code !== 'auth/redirect-cancelled-by-user') {
+        setAuthError('Erro ao fazer login. Tente novamente.');
       }
     });
 
@@ -118,11 +131,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async () => {
+    setAuthError(null);
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    
     try {
-      await signInWithPopup(auth, provider);
-    } catch (error) {
+      if (Capacitor.isNativePlatform()) {
+        await signInWithRedirect(auth, provider);
+      } else {
+        await signInWithPopup(auth, provider);
+      }
+    } catch (error: any) {
       console.error('Sign in error:', error);
+      if (error.code === 'auth/popup-blocked') {
+        setAuthError('Por favor, permita pop-ups no seu navegador para fazer login.');
+      } else if (
+        error.code !== 'auth/popup-closed-by-user' && 
+        error.code !== 'auth/cancelled-popup-request'
+      ) {
+        setAuthError('Erro ao fazer login com o Google. Tente novamente.');
+      }
     }
   };
 
@@ -137,7 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isAdmin = profile?.role === 'admin' || user?.email === 'mizael.org.silva@gmail.com' || user?.email === 'viralizaapp33@gmail.com';
 
   return (
-    <AuthContext.Provider value={{ user, profile, appSettings, loading, signIn, logout, isAdmin, isFeminine, setIsFeminine }}>
+    <AuthContext.Provider value={{ user, profile, appSettings, loading, signIn, logout, isAdmin, isFeminine, setIsFeminine, authError }}>
       {children}
     </AuthContext.Provider>
   );
