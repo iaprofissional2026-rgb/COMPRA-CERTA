@@ -50,25 +50,46 @@ export function AdminPanel() {
   const [newCode, setNewCode] = useState({ code: '', maxUses: 1 });
   const [broadcast, setBroadcast] = useState({ title: '', body: '' });
   const [isSending, setIsSending] = useState(false);
+  const [isImproving, setIsImproving] = useState(false);
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   
   const [localSettings, setLocalSettings] = useState({
     appName: '',
     appDescription: '',
     appVersion: '',
-    playStoreUrl: ''
+    playStoreUrl: '',
+    openRouterApiKey: ''
   });
 
   useEffect(() => {
     if (appSettings) {
-      setLocalSettings({
+      setLocalSettings(prev => ({
+        ...prev,
         appName: appSettings.appName || '',
         appDescription: appSettings.appDescription || '',
         appVersion: appSettings.appVersion || '',
         playStoreUrl: appSettings.playStoreUrl || ''
-      });
+      }));
     }
   }, [appSettings]);
+
+  useEffect(() => {
+    const fetchSecrets = async () => {
+      try {
+        const { getDoc, doc } = await import('firebase/firestore');
+        const docSnap = await getDoc(doc(db, 'app_settings', 'secrets'));
+        if (docSnap.exists()) {
+          setLocalSettings(prev => ({
+            ...prev,
+            openRouterApiKey: docSnap.data().openRouterApiKey || ''
+          }));
+        }
+      } catch (e) {
+        console.error('Error fetching secrets:', e);
+      }
+    };
+    fetchSecrets();
+  }, []);
   useEffect(() => {
     const unsubRequests = onSnapshot(query(collection(db, 'users'), where('status', '==', 'pending'), orderBy('createdAt', 'desc')), (snap) => {
       setRequests(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -163,30 +184,92 @@ export function AdminPanel() {
     }
   };
 
+  const improveDescription = async () => {
+    if (!localSettings.appDescription || !localSettings.openRouterApiKey) {
+      showToast('Adicione uma descrição e a chave da OpenRouter primeiro.', 'error');
+      return;
+    }
+    setIsImproving(true);
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localSettings.openRouterApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'nvidia/nemotron-3-super-120b-a12b:free',
+          messages: [
+            {
+              role: 'system',
+              content: 'Você é um especialista em marketing de aplicativos. Melhore a descrição fornecida para torná-la mais atraente e profissional, mantendo o mesmo idioma. Retorne apenas a descrição melhorada, sem aspas ou comentários adicionais.'
+            },
+            {
+              role: 'user',
+              content: localSettings.appDescription
+            }
+          ]
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Falha ao comunicar com a OpenRouter');
+      }
+
+      const data = await response.json();
+      const improvedText = data.choices[0]?.message?.content?.trim();
+      
+      if (improvedText) {
+        setLocalSettings(prev => ({ ...prev, appDescription: improvedText }));
+        showToast('Descrição melhorada com sucesso!');
+      } else {
+        throw new Error('Resposta vazia');
+      }
+    } catch (error) {
+      console.error('Error improving description:', error);
+      showToast('Erro ao melhorar descrição. Verifique sua chave API.', 'error');
+    } finally {
+      setIsImproving(false);
+    }
+  };
+
   const handleSaveSettings = async () => {
     try {
+      const { openRouterApiKey, ...publicSettings } = localSettings;
+      
       await updateDoc(doc(db, 'app_settings', 'global'), {
-        ...localSettings,
+        ...publicSettings,
         updatedAt: serverTimestamp()
       });
+
+      const { setDoc } = await import('firebase/firestore');
+      await setDoc(doc(db, 'app_settings', 'secrets'), {
+        openRouterApiKey,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
       showToast('Configurações salvas!');
     } catch (e) {
       // If document doesn't exist, create it
       try {
-        await addDoc(collection(db, 'app_settings'), {
-          ...localSettings,
-          id: 'global',
-          updatedAt: serverTimestamp()
-        });
-      } catch (err) {
-        // Fallback for setDoc if addDoc fails with custom ID logic
+        const { openRouterApiKey, ...publicSettings } = localSettings;
         const { setDoc } = await import('firebase/firestore');
+        
         await setDoc(doc(db, 'app_settings', 'global'), {
-          ...localSettings,
+          ...publicSettings,
           updatedAt: serverTimestamp()
         });
+
+        await setDoc(doc(db, 'app_settings', 'secrets'), {
+          openRouterApiKey,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        
+        showToast('Configurações salvas!');
+      } catch (err) {
+        console.error('Error saving settings:', err);
+        showToast('Erro ao salvar configurações', 'error');
       }
-      showToast('Configurações salvas!');
     }
   };
 
@@ -479,13 +562,35 @@ export function AdminPanel() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">Descrição do App</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-sm font-medium text-neutral-700">Descrição do App</label>
+                      <button
+                        onClick={improveDescription}
+                        disabled={isImproving || !localSettings.appDescription || !localSettings.openRouterApiKey}
+                        className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 disabled:opacity-50"
+                      >
+                        {isImproving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                        Melhorar com IA
+                      </button>
+                    </div>
                     <textarea 
                       value={localSettings.appDescription}
                       onChange={e => setLocalSettings({...localSettings, appDescription: e.target.value})}
                       rows={4}
                       className="w-full bg-neutral-50 border border-neutral-200 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-neutral-900 resize-none"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">Chave API OpenRouter</label>
+                    <input 
+                      type="password" 
+                      value={localSettings.openRouterApiKey}
+                      onChange={e => setLocalSettings({...localSettings, openRouterApiKey: e.target.value})}
+                      placeholder="sk-or-v1-..."
+                      className="w-full bg-neutral-50 border border-neutral-200 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-neutral-900"
+                    />
+                    <p className="text-xs text-neutral-500 mt-1">Usada para melhorar a descrição do app com o modelo nvidia/nemotron-3-super-120b-a12b:free.</p>
                   </div>
 
                   <div>

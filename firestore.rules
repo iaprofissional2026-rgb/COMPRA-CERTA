@@ -67,7 +67,7 @@ service cloud.firestore {
     }
 
     match /app_settings/{settingId} {
-      allow read: if true;
+      allow read: if settingId == 'global' || isAdmin();
       allow write: if isAdmin();
     }
 
