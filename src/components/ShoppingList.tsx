@@ -428,7 +428,7 @@ export function ShoppingList() {
                   onClick={() => {
                     setIsAdding(false);
                     setEditingId(null);
-                    setNewItem({ name: '', quantity: '1', unit: 'un', price: '', category: 'alimentos', brand: '' });
+                    setNewItem({ name: '', unitsCount: 1, quantity: '1', unit: 'un', price: '', category: 'alimentos', brand: '' });
                     setDetectedUnit(null);
                   }}
                   className="p-2 hover:bg-neutral-100 rounded-full transition-colors"
@@ -497,14 +497,14 @@ export function ShoppingList() {
                     <label className="block text-xs font-bold text-neutral-700 mb-1 uppercase tracking-wider">Unidades</label>
                     <div className="flex items-center justify-between bg-neutral-50 border border-neutral-200 rounded-xl px-2 py-1.5 h-[42px]">
                       <button 
-                        onClick={() => setNewItem({...newItem, unitsCount: Math.max(1, newItem.unitsCount - 1)})}
+                        onClick={() => setNewItem({...newItem, unitsCount: Math.max(1, (newItem.unitsCount || 1) - 1)})}
                         className="w-7 h-7 flex items-center justify-center rounded-lg bg-white shadow-sm text-neutral-600 hover:bg-neutral-100 transition-colors"
                       >
                         -
                       </button>
-                      <span className="font-bold text-neutral-900">{newItem.unitsCount}</span>
+                      <span className="font-bold text-neutral-900">{newItem.unitsCount || 1}</span>
                       <button 
-                        onClick={() => setNewItem({...newItem, unitsCount: newItem.unitsCount + 1})}
+                        onClick={() => setNewItem({...newItem, unitsCount: (newItem.unitsCount || 1) + 1})}
                         className="w-7 h-7 flex items-center justify-center rounded-lg bg-white shadow-sm text-neutral-600 hover:bg-neutral-100 transition-colors"
                       >
                         +

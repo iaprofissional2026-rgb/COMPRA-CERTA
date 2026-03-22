@@ -36,7 +36,6 @@ import {
   Save,
   Loader2
 } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
 import { NotificationService } from '../lib/notifications';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
@@ -51,7 +50,6 @@ export function AdminPanel() {
   const [newCode, setNewCode] = useState({ code: '', maxUses: 1 });
   const [broadcast, setBroadcast] = useState({ title: '', body: '' });
   const [isSending, setIsSending] = useState(false);
-  const [isImproving, setIsImproving] = useState(false);
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   
   const [localSettings, setLocalSettings] = useState({
@@ -189,28 +187,6 @@ export function AdminPanel() {
         });
       }
       showToast('Configurações salvas!');
-    }
-  };
-
-  const improveDescription = async () => {
-    setIsImproving(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Melhore a descrição deste aplicativo de lista de compras para torná-lo mais atraente para a Play Store. 
-        Nome atual: ${localSettings.appName}
-        Descrição atual: ${localSettings.appDescription}
-        Retorne apenas o texto da nova descrição, em português, sem aspas ou introduções.`
-      });
-      if (response.text) {
-        setLocalSettings(prev => ({ ...prev, appDescription: response.text.trim() }));
-      }
-    } catch (e) {
-      console.error('AI Error:', e);
-      showToast('Erro ao usar IA.', 'error');
-    } finally {
-      setIsImproving(false);
     }
   };
 
@@ -503,17 +479,7 @@ export function AdminPanel() {
                   </div>
 
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-sm font-medium text-neutral-700">Descrição do App</label>
-                      <button 
-                        onClick={improveDescription}
-                        disabled={isImproving}
-                        className="text-xs font-bold text-emerald-600 flex items-center gap-1 hover:underline disabled:opacity-50"
-                      >
-                        {isImproving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                        Melhorar com IA
-                      </button>
-                    </div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">Descrição do App</label>
                     <textarea 
                       value={localSettings.appDescription}
                       onChange={e => setLocalSettings({...localSettings, appDescription: e.target.value})}
@@ -540,21 +506,6 @@ export function AdminPanel() {
                     <Save className="w-4 h-4" />
                     Salvar Alterações
                   </button>
-                </div>
-              </div>
-
-              <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-100">
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-emerald-600 shadow-sm">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-emerald-900">Dica do Google AI Studio</h4>
-                    <p className="text-sm text-emerald-700 mt-1">
-                      Use o botão "Melhorar com IA" para gerar descrições profissionais otimizadas para a Play Store. 
-                      A IA analisa seu nome e descrição atual para criar algo mais impactante.
-                    </p>
-                  </div>
                 </div>
               </div>
             </motion.div>
