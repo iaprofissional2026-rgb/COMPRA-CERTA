@@ -2,7 +2,8 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { 
   onAuthStateChanged, 
   User, 
-  signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider, 
   signOut 
 } from 'firebase/auth';
@@ -62,6 +63,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     testConnection();
 
+    // Check for redirect result to catch any errors during the redirect flow
+    getRedirectResult(auth).catch((error) => {
+      console.error('Redirect sign in error:', error);
+    });
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       // Cleanup previous profile listener if any
       if (unsubProfile) {
@@ -120,7 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      await signInWithRedirect(auth, provider);
     } catch (error) {
       console.error('Sign in error:', error);
     }
